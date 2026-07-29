@@ -7,7 +7,7 @@
     <link href="https://vjs.zencdn.net/8.10.0/video-js.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000; font-family: 'Segoe UI', Roboto, sans-serif; color: white; cursor: pointer; }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000; font-family: 'Segoe UI', Roboto, sans-serif; color: white; }
         .layer { position: absolute; overflow: hidden; transition: 0.3s ease-out; }
         
         /* --- PLAYER OTIMIZADO --- */
@@ -15,6 +15,34 @@
         .vjs-tech { object-fit: fill !important; -webkit-backface-visibility: hidden; } 
         /* Esconde interface pesada */
         .vjs-big-play-button, .vjs-loading-spinner, .vjs-control-bar { display: none !important; }
+
+        /* Botão para liberar o áudio */
+        #btn-audio {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 99999;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(34, 197, 94, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.2s, background 0.2s;
+            animation: pulseBtn 2s infinite;
+        }
+        #btn-audio:hover { transform: scale(1.05); background: linear-gradient(135deg, #16a34a, #15803d); }
+        @keyframes pulseBtn {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
 
         .news-box { padding: 15px; box-sizing: border-box; display: flex; flex-direction: column; }
         .news-card { background: #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 15px 30px rgba(0,0,0,0.4); animation: fadeIn 0.8s ease; flex: 1; display: flex; flex-direction: column; margin-bottom: 15px; }
@@ -34,7 +62,10 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body onclick="liberarGeral()">
+<body>
+
+<!-- Botão exclusivo para liberar o áudio -->
+<button id="btn-audio" onclick="liberarAudio()">🔊 CLIQUE PARA LIBERAR O ÁUDIO</button>
 
 <div id="v-layer" class="layer">
     <video id="player" class="video-js vjs-default-skin" playsinline preload="auto"></video>
@@ -100,7 +131,7 @@ const db = getFirestore(appNews);
 
 const player = videojs('player', {
     autoplay: 'any',
-    muted: false,
+    muted: true, // Inicia mutado para garantir reprodução automática sem bloqueio do navegador
     controls: false,
     html5: {
         vhs: {
@@ -123,9 +154,16 @@ function loadSinal() {
     player.play().catch(() => {});
 }
 
-window.liberarGeral = function() {
+// Função acionada pelo botão para liberar o áudio e sumir com o botão
+window.liberarAudio = function() {
     player.muted(false);
-    player.play();
+    player.play().catch(() => {});
+    const btn = document.getElementById('btn-audio');
+    if (btn) {
+        btn.style.transition = 'opacity 0.5s ease';
+        btn.style.opacity = '0';
+        setTimeout(() => btn.style.display = 'none', 500);
+    }
 };
 
 setInterval(() => {
