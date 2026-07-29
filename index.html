@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <title>KBS TV - Receptor Oficial</title>
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000; font-family: 'Segoe UI', Roboto, sans-serif; color: white; cursor: pointer; }
+        .layer { position: absolute; overflow: hidden; transition: 0.3s ease-out; }
+        
+        /* --- PLAYER OTIMIZADO --- */
+        .video-js { width: 100% !important; height: 100% !important; }
+        .vjs-tech { object-fit: fill !important; -webkit-backface-visibility: hidden; } 
+        /* Esconde interface pesada */
+        .vjs-big-play-button, .vjs-loading-spinner, .vjs-control-bar { display: none !important; }
+
+        .news-box { padding: 15px; box-sizing: border-box; display: flex; flex-direction: column; }
+        .news-card { background: #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 15px 30px rgba(0,0,0,0.4); animation: fadeIn 0.8s ease; flex: 1; display: flex; flex-direction: column; margin-bottom: 15px; }
+        .news-card img { width: 100%; height: 45%; object-fit: cover; }
+        .content { padding: 20px; }
+        .tag { background: #d32f2f; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; display: inline-block; margin-bottom: 10px; text-transform: uppercase; font-weight: bold; }
+        .title { font-size: 1.6rem; font-weight: bold; margin-bottom: 10px; line-height: 1.2; }
+        .summary { font-size: 1rem; opacity: 0.8; }
+        #weather-panel { display: none; height: 100%; padding: 25px; box-sizing: border-box; animation: fadeIn 1s ease; text-align: center; background: #0f172a; border-radius: 20px; }
+        .current-weather { display: flex; justify-content: space-around; align-items: center; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 20px; border-radius: 30px; margin-bottom: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.2); text-align: left; }
+        .temp-grande { font-size: 4.5rem; font-weight: bold; color: #f59e0b; line-height: 1; }
+        .chart-container { height: 180px; background: rgba(30, 41, 59, 0.5); padding: 15px; border-radius: 20px; margin-bottom: 15px; }
+        .qr-section { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .qr-code-img { width: 120px; height: 120px; background: white; padding: 8px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .qr-call { font-size: 1.1rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; }
+        .banner-img { position: absolute; object-fit: fill; z-index: 50; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body onclick="liberarGeral()">
+
+<div id="v-layer" class="layer">
+    <video id="player" class="video-js vjs-default-skin" playsinline preload="auto"></video>
+</div>
+
+<div id="n-layer" class="layer news-box">
+    <div id="rotator" style="height: 100%;"></div>
+
+    <div id="weather-panel">
+        <h1 style="font-size: 1.5rem; margin-bottom: 15px; text-align: left;">Previsão do Tempo: Curitiba</h1>
+        <div class="current-weather">
+            <div>
+                <div class="temp-grande" id="current-temp">--°C</div>
+                <div style="font-size: 1.1rem; opacity: 0.8;">Agora</div>
+            </div>
+            <div style="font-size: 1.2rem; line-height: 1.8;">
+                <div>💧 Humidade: <span id="humidity">--</span>%</div>
+                <div>💨 Vento: <span id="wind">--</span> km/h</div>
+            </div>
+        </div>
+        <div class="chart-container"><canvas id="weatherChart"></canvas></div>
+        <div class="qr-section">
+            <img class="qr-code-img" src="https://i.imgur.com/UfQjAQy.png">
+            <div class="qr-call">Entre no jornal da KBS TV</div>
+        </div>
+    </div>
+</div>
+
+<div id="banners-container"></div>
+
+<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+import { getFirestore, collection, query, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+// 1. Firebase Principal (Novo: clipemusical) - Usado para o Realtime Database e Layout/Banners
+const configMain = {
+  apiKey: "AIzaSyDNV5SEbl91B-4KOkKC8-ENZ_BMrwJfEqI",
+  authDomain: "clipemusical.firebaseapp.com",
+  databaseURL: "https://clipemusical-default-rtdb.firebaseio.com",
+  projectId: "clipemusical",
+  storageBucket: "clipemusical.firebasestorage.app",
+  messagingSenderId: "401665085647",
+  appId: "1:401665085647:web:b0b700d95872cd3b1267ba",
+  measurementId: "G-J07LX3SD35"
+};
+const appMain = initializeApp(configMain);
+const rtdb = getDatabase(appMain);
+
+// 2. Firebase do Jornal (Original: jornal-automatico) - Usado exclusivamente para o Firestore das notícias[cite: 1]
+const configNews = { 
+  apiKey: "AIzaSyAGdlkrOftGtg5RaTVVF-enXzE4uQaYoLM", 
+  projectId: "jornal-automatico" 
+};
+const appNews = initializeApp(configNews, "newsApp");
+const db = getFirestore(appNews);
+
+/* ============================
+   PLAYER ULTRA LEVE & ESTÁVEL 
+============================ */
+
+const player = videojs('player', {
+    autoplay: 'any',
+    muted: false,
+    controls: false,
+    html5: {
+        vhs: {
+            enableLowInitialPlaylist: true,
+            fastQualityChange: true,
+            overrideNative: true
+        }
+    }
+});
+
+const streamUrl = "https://srv3.zcast.com.br/djeduardocouto/djeduardocouto/playlist.m3u8";
+let lastTime = -1;
+let freezeCount = 0;
+
+function loadSinal() {
+    player.src({
+        src: streamUrl + "?t=" + Date.now(),
+        type: "application/x-mpegURL"
+    });
+    player.play().catch(() => {});
+}
+
+window.liberarGeral = function() {
+    player.muted(false);
+    player.play();
+};
+
+setInterval(() => {
+    if (!player.paused()) {
+        const current = player.currentTime();
+        if (current === lastTime) {
+            freezeCount++;
+            if (freezeCount >= 2) {
+                loadSinal();
+                freezeCount = 0;
+            }
+        } else {
+            freezeCount = 0;
+        }
+        lastTime = current;
+    }
+}, 5000);
+
+setInterval(loadSinal, 240000);
+player.on('error', () => setTimeout(loadSinal, 3000));
+window.addEventListener('online', () => loadSinal());
+loadSinal();
+
+/* ============================
+   SINCRONIA ADMIN + BANNERS MP4
+============================ */
+
+onValue(ref(rtdb, 'kbs_multi_v1'), (snap) => {
+    const s = snap.val(); if(!s) return;
+    const up = (id, d) => { 
+        const el = document.getElementById(id); 
+        if(!el || !d) return;
+        el.style.left = d.x + "%"; 
+        el.style.top = d.y + "%"; 
+        el.style.width = d.w + "%"; 
+        el.style.height = d.h + "%"; 
+    };
+    up('v-layer', s.video); 
+    up('n-layer', s.news);
+    document.getElementById('n-layer').style.backgroundColor = s.nBg;
+
+    const bContainer = document.getElementById('banners-container');
+    bContainer.innerHTML = ""; 
+    if(s.banners) {
+        Object.keys(s.banners).forEach(key => {
+            const b = s.banners[key];
+            if(b.url && b.url.trim() !== "") {
+                let mediaElement;
+                
+                if (b.url.toLowerCase().endsWith('.mp4') || b.url.includes('video')) {
+                    mediaElement = document.createElement('video');
+                    mediaElement.src = b.url;
+                    mediaElement.autoplay = true;
+                    mediaElement.loop = true;
+                    mediaElement.muted = true;
+                    mediaElement.setAttribute('playsinline', '');
+                } else {
+                    mediaElement = document.createElement('img');
+                    mediaElement.src = b.url;
+                }
+
+                mediaElement.className = "banner-img";
+                mediaElement.style.left = b.x + "%"; 
+                mediaElement.style.top = b.y + "%";
+                mediaElement.style.width = b.w + "%"; 
+                mediaElement.style.height = b.h + "%";
+                bContainer.appendChild(mediaElement);
+            }
+        });
+    }
+});
+
+/* ============================
+   NOTÍCIAS E CLIMA
+============================ */
+
+let allArticles = [];
+let currentIndex = 0;
+let isWeatherShowing = false;
+let chartInstance = null;
+
+async function showWeather() {
+    isWeatherShowing = true;
+    document.getElementById("rotator").style.display = "none";
+    document.getElementById("weather-panel").style.display = "block";
+    try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=-25.4278&longitude=-49.2731&current=temperature_2m,relative_humidity_2m,wind_speed_10m&hourly=temperature_2m&timezone=America%2FSao_Paulo&forecast_days=1`);
+        const data = await res.json();
+        document.getElementById('current-temp').innerText = Math.round(data.current.temperature_2m) + '°C';
+        document.getElementById('humidity').innerText = data.current.relative_humidity_2m;
+        document.getElementById('wind').innerText = data.current.wind_speed_10m;
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(document.getElementById('weatherChart'), {
+            type: 'line',
+            data: {
+                labels: data.hourly.time.map(t => t.split('T')[1]).filter((_, i) => i % 2 === 0),
+                datasets: [{
+                    data: data.hourly.temperature_2m.filter((_, i) => i % 2 === 0),
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    } catch (e) {}
+    setTimeout(() => { isWeatherShowing = false; currentIndex = 0; rotation(); }, 20000);
+}
+
+function rotation() {
+    if (isWeatherShowing) return;
+    const container = document.getElementById("rotator");
+    document.getElementById("weather-panel").style.display = "none";
+    container.style.display = "block";
+    const block = allArticles.slice(currentIndex, currentIndex + 2);
+    if (block.length === 0) { showWeather(); return; }
+    container.innerHTML = block.map(a => `
+        <div class="news-card">
+            <img src="${a.cover || 'https://placehold.co/400x200/333/fff?text=KBS+TV'}">
+            <div class="content">
+                <div class="tag">${a.tag || 'Geral'}</div>
+                <div class="title">${a.title}</div>
+                <div class="summary">${a.summary ? a.summary.substring(0, 100) + '...' : ''}</div>
+            </div>
+        </div>
+    `).join('');
+    currentIndex += 2;
+    setTimeout(rotation, 25000);
+}
+
+// Conectado corretamente ao projeto original do Firestore para buscar as notícias[cite: 1]
+onSnapshot(query(collection(db, 'artifacts/default-app-id/users/pzyclksOaGTWrl3x3swL40JECw42/news')), (snap) => {
+    allArticles = [];
+    snap.forEach(doc => allArticles.push(doc.data()));
+    if (allArticles.length > 0 && !isWeatherShowing && currentIndex === 0) rotation();
+});
+
+</script>
+</body>
+</html>
