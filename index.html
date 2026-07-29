@@ -131,7 +131,7 @@ const db = getFirestore(appNews);
 
 const player = videojs('player', {
     autoplay: 'any',
-    muted: true, // Inicia mutado para garantir reprodução automática sem bloqueio do navegador
+    muted: true,
     controls: false,
     html5: {
         vhs: {
@@ -154,7 +154,6 @@ function loadSinal() {
     player.play().catch(() => {});
 }
 
-// Função acionada pelo botão para liberar o áudio e sumir com o botão
 window.liberarAudio = function() {
     player.muted(false);
     player.play().catch(() => {});
@@ -237,7 +236,7 @@ onValue(ref(rtdb, 'kbs_multi_v1'), (snap) => {
 });
 
 /* ============================
-   NOTÍCIAS E CLIMA
+   NOTÍCIAS E CLIMA (AGORA MAIS LENTO)
 ============================ */
 
 let allArticles = [];
@@ -272,7 +271,9 @@ async function showWeather() {
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
         });
     } catch (e) {}
-    setTimeout(() => { isWeatherShowing = false; currentIndex = 0; rotation(); }, 20000);
+    
+    // TEMPO DA PREVISÃO DO TEMPO NA TELA: Aumentado para 30 segundos (30000ms)
+    setTimeout(() => { isWeatherShowing = false; currentIndex = 0; rotation(); }, 30000);
 }
 
 function rotation() {
@@ -293,10 +294,11 @@ function rotation() {
         </div>
     `).join('');
     currentIndex += 2;
-    setTimeout(rotation, 25000);
+    
+    // TEMPO DE CADA PÁGINA DE NOTÍCIAS: Aumentado para 45 segundos (45000ms)
+    setTimeout(rotation, 45000);
 }
 
-// Conectado corretamente ao projeto original do Firestore para buscar as notícias[cite: 1]
 onSnapshot(query(collection(db, 'artifacts/default-app-id/users/pzyclksOaGTWrl3x3swL40JECw42/news')), (snap) => {
     allArticles = [];
     snap.forEach(doc => allArticles.push(doc.data()));
